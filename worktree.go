@@ -41,7 +41,7 @@ func retNil() interface{} {
 	return nil
 }
 
-func (cS *channelStruct) Do ()  {
+func (cS *channelStruct) Do () interface{} {
 	//I keep the channels in this slice, and want to "loop" over them in the select statement
 	for index, function := range cS.FetchFunctions {
 		go cS.workAndQuit(index, function, cS.FetchFunctionsInput[index])
@@ -66,7 +66,6 @@ func (cS *channelStruct) Do ()  {
 					agg := AggStruct{msg.Index, resp, false}
 					cS.parent <- agg
 				}
-				fmt.Println("===resp=", resp)
 				// cs.Parent <- resp ***
 			case <-time.After(2 * time.Second):
 				breakFlag = true
@@ -76,8 +75,10 @@ func (cS *channelStruct) Do ()  {
 			break
 		}
 	}
+	return resp
 }
 
+// work (mapper) 
 func (cS *channelStruct) work(index int, function func(inp interface{}, agg chan AggStruct) interface{}, payload interface{}) {
 	//time.Sleep(3*time.Second)
 	// If you create a new work tree in child mapper; function(payload); 
@@ -87,6 +88,7 @@ func (cS *channelStruct) work(index int, function func(inp interface{}, agg chan
 	cS.aggregator <- agg
 }
 
+// do work and then send sentinal channel to exit
 func (cS *channelStruct) workAndQuit(index int, function func(inp interface{}, agg chan AggStruct) interface{}, payload interface{}){
 	// wrapped user defined function
 	cS.work(index, function, payload)
@@ -112,11 +114,13 @@ func combiner(index int, data interface{}, resp interface{}) (interface{}, bool)
 func main() {
 	//ch := make (chan AggStruct)
 	cS := channelStruct{}
-	cS.AddFetcher(fetcher, 2)
+	cS.AddFetcher(fetcher, 20)
+	cS.AddFetcher(fetcher, 33)
+	cS.AddFetcher(fetcher, 16)
 	cS.AddFetcher(fetcher, 3)
 	cS.AddCombiner(combiner)
-	cS.Do()
-
+	resp := cS.Do()
+	fmt.Println(resp)
 	/*for i := 0; i < numChans; i++ {
 		msg := <-agg
 		fmt.Println("message", msg)
