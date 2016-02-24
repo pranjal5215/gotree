@@ -96,7 +96,19 @@ func (cS *channelStruct) workAndQuit(index int, function func(inp interface{}, a
 	cS.aggregator <- agg
 }
 
-func fetcher(inp interface{}, _ chan AggStruct) interface{} {
+func fetcher(inp interface{}, parent chan AggStruct) interface{} {
+	i := inp.(int)
+	if i == 20{
+		cS := channelStruct{parent:parent}
+		cS.AddFetcher(fetcher1, 10)
+		cS.AddFetcher(fetcher1, 20)
+		cS.AddCombiner(combiner)
+		resp := cS.Do()
+		return i + resp.(int)
+	}
+	return i
+}
+func fetcher1(inp interface{}, _ chan AggStruct) interface{} {
 	i := inp.(int)
 	return i
 }
@@ -112,15 +124,28 @@ func combiner(index int, data interface{}, resp interface{}) (interface{}, bool)
 }
 
 func main() {
-	//ch := make (chan AggStruct)
+	// simple tree
 	cS := channelStruct{}
-	cS.AddFetcher(fetcher, 20)
-	cS.AddFetcher(fetcher, 33)
-	cS.AddFetcher(fetcher, 16)
-	cS.AddFetcher(fetcher, 3)
+	cS.AddFetcher(fetcher1, 20)
+	cS.AddFetcher(fetcher1, 33)
+	cS.AddFetcher(fetcher1, 16)
+	cS.AddFetcher(fetcher1, 3)
 	cS.AddCombiner(combiner)
 	resp := cS.Do()
 	fmt.Println(resp)
+
+
+	// tree behind a tree
+	cS1 := channelStruct{}
+	cS1.AddFetcher(fetcher, 20)
+	cS1.AddFetcher(fetcher, 30)
+	cS1.AddFetcher(fetcher, 40)
+	cS1.AddFetcher(fetcher, 50)
+	cS1.AddCombiner(combiner)
+	resp1 := cS1.Do()
+	fmt.Println(resp1)
+
+
 	/*for i := 0; i < numChans; i++ {
 		msg := <-agg
 		fmt.Println("message", msg)
