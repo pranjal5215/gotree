@@ -5,12 +5,17 @@ import (
 	"time"
 )
 
+// Struct channel which is used to send and receive data
+// Index in mapper index
+// Data in actual data interface
+// Sentinal is used to signal end of response for one mapper
 type AggStruct struct{
 	Index	int
 	Data	interface{}
 	Sentinal	bool
 }
 
+// Channel struct which will be invoked by client
 type channelStruct struct{
 	size	int
 	aggregator	chan AggStruct
@@ -20,19 +25,14 @@ type channelStruct struct{
 	Combiner	func(index int, inp interface{}, allR interface{}) (interface{}, bool)
 }
 
-/*func NewChannelStruct() chan AggStruct {
-	cS := channelStruct{}
-	cS.aggregator = make(chan AggStruct, cS.size)
-	cS.quitChan = make(chan bool, cS.size)
-	return cS.aggregator
-}*/
-
+// Add fetcher(mapper)
 func (cS *channelStruct) AddFetcher (f func(inp interface{}, agg chan AggStruct) interface{}, input interface{}) {
 	cS.FetchFunctions = append(cS.FetchFunctions, f)
 	cS.FetchFunctionsInput = append(cS.FetchFunctionsInput, input)
 	cS.size = cS.size + 1
 }
 
+// Add combiner(reducer)
 func (cS *channelStruct) AddCombiner (f func(index int, inp interface{}, allR interface{}) (interface{}, bool)) {
 	cS.Combiner = f
 }
@@ -41,6 +41,10 @@ func retNil() interface{} {
 	return nil
 }
 
+// Every run is async, combiner is given current response state and data_recv
+// new_resp_instance = data_recv + old resp_instance 
+// data returned from combiner is updated to new_resp_instance
+// Finally after all receives on aggregator resp is returned.
 func (cS *channelStruct) Do () interface{} {
 	//I keep the channels in this slice, and want to "loop" over them in the select statement
 	for index, function := range cS.FetchFunctions {
@@ -78,19 +82,17 @@ func (cS *channelStruct) Do () interface{} {
 	return resp
 }
 
-// work (mapper) 
+// work; called when mapper is invoked
+// If you create a new work tree in child mapper; function(payload); 
+// assign cs.parent=that channel and send resp to cs.Parent ***
 func (cS *channelStruct) work(index int, function func(inp interface{}, agg chan AggStruct) interface{}, payload interface{}) {
-	//time.Sleep(3*time.Second)
-	// If you create a new work tree in child mapper; function(payload); 
-	// assign cs.parent=that channel and send resp to cs.Parent ***
-	fOut := function(payload, cS.aggregator)
-	agg := AggStruct{index, fOut, false}
+	agg := AggStruct{index, function(payload, cS.aggregator), false}
 	cS.aggregator <- agg
 }
 
 // do work and then send sentinal channel to exit
+// wrap function call and send as Aggstruct instance to agg channel
 func (cS *channelStruct) workAndQuit(index int, function func(inp interface{}, agg chan AggStruct) interface{}, payload interface{}){
-	// wrapped user defined function
 	cS.work(index, function, payload)
 	agg := AggStruct{0, nil, true}
 	cS.aggregator <- agg
