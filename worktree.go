@@ -41,7 +41,8 @@ func retNil() interface{} {
 	return nil
 }
 
-// Every run is async, combiner is given current response state and data_recv
+// Every run is async, combiner is given current response state and 
+// data_recv along with index at which mapped data is received 
 // new_resp_instance = data_recv + old resp_instance 
 // data returned from combiner is updated to new_resp_instance
 // Finally after all receives on aggregator resp is returned.
